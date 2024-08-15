@@ -55,11 +55,13 @@ Once the server is up and running, access the interactive API documentation at t
 
 3.  **Configure the database**:
 
-    Create a PostgreSQL database and set up the connection in the `.env` file:
+         Create a PostgreSQL database and set up the connection in the `.env` file:
 
-    ```
-    DATABASE_URL=your_database_url  # Replace with your database URL
-    ```
+    Add your SECRET_KEY value in the `.env` file
+    Set ALGORITHM = HS256
+    Set ACCESS_TOKEN_EXPIRES_MINUTES = 30
+    `And    DATABASE_URL=your_database_url  # Replace with your database URL
+`
 
 4.  **Add BetterStack Source**:
 

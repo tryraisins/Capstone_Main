@@ -65,4 +65,4 @@ async def delete_user(user_id: int, db: Session = Depends(get_database_session),
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     user_service.delete_user(db, user_id=user_id)
 
-    return {"message": "Successf"}
+    return {"message": "Success"}

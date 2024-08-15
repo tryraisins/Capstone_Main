@@ -92,4 +92,4 @@ async def delete_movie(movie_id: int, current_user: schemas.User = Depends(get_c
 
     movie_crud_service.delete_movie(db, movie_id)
 
-    return {"message": "Successf"}
+    return {"message": "Success"}

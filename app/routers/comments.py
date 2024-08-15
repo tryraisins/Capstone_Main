@@ -150,4 +150,4 @@ async def delete_comment(comment_id: int, current_user: schemas.User = Depends(g
 
     comment_crud_service.delete_comment(db, comment_id)
 
-    return {"message": "Successf"}
+    return {"message": "Success"}

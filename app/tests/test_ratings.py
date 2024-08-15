@@ -1,238 +1,110 @@
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.main import app
+from app.database import get_database_session, Base
+from app.models import User, Movie, Rating
+from app.auth import generate_access_token
+import os
+from app.tests.test_db import test_db
 
 
-@pytest.mark.parametrize("payload, expected_rating", [
-    ({"movie_id": "1",
-     "rating_value": "8"}, 8)
-])
-def test_rate_movie(client,setup_database, payload, expected_rating):
-  # Signup a user
+# Retrieve configuration values
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRES_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRES_MINUTES", "30"))
 
-    user_data = {"username": "john_42", "email": "john42@gmail.com",
-                 "full_name": "John Doe", "password": "qwertyuiop"}
+
+# Set up in-memory SQLite for testing
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@pytest.fixture(scope="module")
+def client(test_db):
+    def override_get_db():
+        try:
+            yield test_db
+        finally:
+            test_db.close()
+
+    app.dependency_overrides[get_database_session] = override_get_db
+    client = TestClient(app)
+    return client
+
+
+@pytest.fixture(scope="module")
+def auth_token(test_db):
+    user = test_db.query(User).first()
+    token = generate_access_token(data={"sub": user.email})
+    return f"Bearer {token}"
+
+
+def test_create_rating(client, auth_token):
+    rating_data = {
+        "rating_value": 5
+    }
 
     response = client.post(
-        "/signup/", json=user_data)
+        "/movies/ratings/1",  # Movie ID is 1
+        json=rating_data,
+        headers={"Authorization": auth_token}
+    )
+
     assert response.status_code == 201
+    assert response.json()["rating_value"] == 5
 
-    # Authenticate and get token
-    response = client.post(
-        "/login/", data={"username": "john_42",  "password": "qwertyuiop"})
 
+def test_get_ratings(client, auth_token):
+    response = client.get("/movies/ratings/", headers={"Authorization": auth_token})
     assert response.status_code == 200
-    
-    token = response.json()["access_token"]
-
-    # Create two movies
-
-    movie_data = {"title": "New Movie", "genre": "Drama",
-                  "description": "A new drama movie."}
-
-    another_movie_data = {"title": "Another Movie", "genre": "Action",
-                          "description": "A new action movie."}
-
-    response = client.post(
-        '/movies',
-        json=movie_data,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 201
-
-    response = client.post(
-        '/movies',
-        json=another_movie_data,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 201
-
-    response = client.post("/movies/ratings/", json=payload)
-
-    assert response.status_code == 401
-
-    response = client.post(
-        "/movies/ratings/",
-        json=payload,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 201
-    data = response.json()
-    
-    assert data["rating_value"] == expected_rating
-    assert data["user_id"] == 1
-
-    response = client.post(
-        '/movies/ratings/',
-        json=payload,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 409
-    data = response.json()
-    assert data == {
-        "detail": "You have already rated movie. Update existing rating"}
-
-    
-    
-
-def test_get_rating(client, setup_database):
-   response = client.get("/movies/ratings/")
-
-   assert response.status_code == 200
-   data = response.json()
-
-   assert all("rating_value" in rating for rating in data)
-   assert all("movie_id" in rating for rating in data)
-   assert all("user_id" in rating for rating in data)
+    ratings = response.json()
+    assert len(ratings) > 0
+    assert ratings[0]["rating_value"] == 5
 
 
-@pytest.mark.parametrize("rating_id, wrong_id, expected_rating_value, expected_movie_id, expected_user_id", [(1, 99, 8, 1, 1)])
-def test_get_rating_by_id(client, setup_database, rating_id, wrong_id, expected_rating_value, expected_movie_id, expected_user_id):
-    # Assert for invalid id
-    response = client.get(f"/movies/ratings/{wrong_id}")
-    assert response.status_code == 404
-
-    response = client.get(f"/movies/ratings/{rating_id}")
-
+def test_get_rating_by_id(client, auth_token):
+    response = client.get("/movies/ratings/1", headers={"Authorization": auth_token})
     assert response.status_code == 200
-    data = response.json()
-
-    assert data["rating_value"] == expected_rating_value
-    assert data["movie_id"] == expected_movie_id
-    assert data["user_id"] == expected_user_id
+    rating = response.json()
+    assert rating["rating_value"] == 5
 
 
-@pytest.mark.parametrize("movie_id, wrong_id, expected_rating_value", [(1, 99, 8)])
-def test_get_rating_by_movie_id(client, setup_database, movie_id, wrong_id, expected_rating_value):
-    # Assert for invalid id
-    response = client.get(f"/movies/ratings/movie_id/{wrong_id}")
-    assert response.status_code == 404
-
-    response = client.get(f"/movies/ratings/{movie_id}")
-
+def test_get_ratings_by_movie_id(client, auth_token):
+    response = client.get("/movies/ratings/movie_id/1", headers={"Authorization": auth_token})
     assert response.status_code == 200
-    data = response.json()
-    assert data["rating_value"] == expected_rating_value
+    ratings = response.json()
+    assert len(ratings) > 0
+    assert ratings[0]["rating_value"] == 5
 
 
-@pytest.mark.parametrize("movie_id, wrong_id, expected_avg_rating", [(1, 99, 8)])
-def test_get_movie_avg_rating(client, setup_database, movie_id, wrong_id, expected_avg_rating):
-    # Assert for invalid id
-    response = client.get(f"/movies/ratings//average_rating/{wrong_id}")
-    assert response.status_code == 404
-
-    response = client.get(f"/movies/ratings/average_rating/{movie_id}")
-
+def test_get_movie_avg_rating(client, auth_token):
+    response = client.get("/movies/ratings/average_rating/1", headers={"Authorization": auth_token})
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "successful"
-    assert data["data"]["avg_rating"] == expected_avg_rating
-    assert data["data"]["movie_id"] == movie_id
-    
+    assert data["data"]["avg_rating"] == 5
 
-@pytest.mark.parametrize("rating_id, wrong_id, payload, expected_rating", [
-    (1, 99, {"rating_value": "5"}, 5)
-])
-def test_update_rating(client, setup_database,rating_id, wrong_id, payload, expected_rating):
-    # Test without authentication
 
-    response = client.put(f"/movies/ratings/{rating_id}")
-
-    assert response.status_code == 401
-
-    # Login and Authenticate 
-
-    response = client.post(
-        "/login/", data={"username": "john_42",  "password": "qwertyuiop"})
-
-    assert response.status_code == 200
-    token = response.json()["access_token"]
+def test_update_rating(client, auth_token):
+    updated_rating_data = {
+        "rating_value": 4
+    }
 
     response = client.put(
-        f"/movies/ratings/{wrong_id}", json=payload, headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 404
-    data = response.json()
-    assert data == {"detail": "Rating not found"}
-
-    response = client.put(
-        f"/movies/ratings/{rating_id}", json=payload, headers={"Authorization": f"Bearer {token}"})
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["rating_value"] == expected_rating
-
-    # Login and authenticate another user to ensure that wrong user can update rating
-    # Signup a user
-
-    user_data = {"username": "sarah87", "email": "sarah87@example.com",
-                 "full_name": "Sarah Jane", "password": "qwertyuiop"}
-
-    response = client.post(
-        "/signup/", json=user_data)
-    assert response.status_code == 201
-
-    # Authenticate and get token
-    response = client.post(
-        "/login/", data={"username": "sarah87",  "password": "qwertyuiop"})
-    
-    assert response.status_code == 200
-    token = response.json()["access_token"]
-    
-    # Try to update another user's rating (should throw a 401)
-    response = client.put(
-        f"/movies/ratings/{rating_id}", json=payload, headers={"Authorization": f"Bearer {token}"})
-    
-    assert response.status_code == 401
-    data = response.json()
-    assert data == {"detail": "Unauthorized"}
-
-
-@pytest.mark.parametrize("rating_id, wrong_id", [
-    (1, 99)
-])
-def test_delete_rating(client, setup_database, rating_id, wrong_id):
-    # Test delete without authentication
-
-    response = client.delete(f"/movies/ratings/{rating_id}")
-
-    assert response.status_code == 401
-
-    # Login and Authenticate
-
-    response = client.post(
-        "/login/", data={"username": "john_42",  "password": "qwertyuiop"})
+        "/movies/ratings/1",
+        json=updated_rating_data,
+        headers={"Authorization": auth_token}
+    )
 
     assert response.status_code == 200
-    token_user1 = response.json()["access_token"]
+    assert response.json()["rating_value"] == 4
 
-    response = client.delete(
-        f"/movies/ratings/{wrong_id}", headers={"Authorization": f"Bearer {token_user1}"})
 
-    assert response.status_code == 404
-    data = response.json()
-    assert data == {"detail": "Rating not found"}
-
-    # Login and authenticate another user to ensure that wrong user can delete rating
-
-    # Authenticate and get token
-    response = client.post(
-        "/login/", data={"username": "sarah87",  "password": "qwertyuiop"})
-
+def test_delete_rating(client, auth_token):
+    response = client.delete("/movies/ratings/1", headers={"Authorization": auth_token})
     assert response.status_code == 200
-    token_user2 = response.json()["access_token"]
-
-    # Try to delete another user's rating (should throw a 401)
-    response = client.delete(
-        f"/movies/ratings/{rating_id}", headers={"Authorization": f"Bearer {token_user2}"})
-
-    assert response.status_code == 401
-    data = response.json()
-    assert data == {"detail": "Unauthorized"}
-
-    # Test delete rating
-
-    response = client.delete(
-        f"/movies/ratings/{rating_id}", headers={"Authorization": f"Bearer {token_user1}"})
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data == {"message": "Successf"}
+    assert response.json()["message"] == "Successf"

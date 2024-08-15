@@ -189,4 +189,4 @@ def test_delete_user(client, setup_database, username, password, user_id, wrong_
 
     assert response.status_code == 200
     data = response.json()
-    assert data == {"message": "Successf"}
+    assert data == {"message": "Success"}
