@@ -56,20 +56,22 @@ def test_get_users(client, test_db, create_test_user):
     assert len(response.json()) > 0
 
 # Test: Get user by ID
-def test_get_user_by_id(client, test_db, create_test_user):
+def test_get_user_by_id(client, test_db):
     test_user = user_service.get_user_by_username(test_db, "testuser")
     response = client.get(f"/users/{test_user.id}")
     assert response.status_code == 200
     assert response.json()["username"] == "testuser"
 
 # Test: Get user by username
-def test_get_user_by_username(client):
-    response = client.get("/users/name/testuser")
+def test_get_user_by_username(client, test_db):
+    test_user = user_service.get_user_by_username(test_db, "testuser")
+
+    response = client.get(f"/users/name/{test_user.username}")
     assert response.status_code == 200
     assert response.json()["username"] == "testuser"
 
 # Test: Update user by ID
-def test_update_user(client, test_db, mock_user):
+def test_update_user(client, test_db):
     test_user = user_service.get_user_by_username(test_db, "testuser")
     update_data = {"username": "updateduser"}
     response = client.put(f"/users/{test_user.id}", json=update_data)
