@@ -21,6 +21,7 @@ async def get_movies(db: Session = Depends(get_database_session), offset: int = 
     return movies
 
 
+
 # Endpoint to get a movie by its ID
 @movie_routes.get("/{movie_id}", status_code=200, response_model=schemas.Movie)
 async def get_movie_by_id(movie_id: str, db: Session = Depends(get_database_session)):

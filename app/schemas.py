@@ -48,9 +48,7 @@ class MovieUpdate(BaseModel):
 
 class Movie(MovieBase):
     id: int
-    user_id: int
     created_at: datetime
-    owner: User
 
     class Config:
         from_attributes = True

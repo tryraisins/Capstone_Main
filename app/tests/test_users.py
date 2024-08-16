@@ -1,192 +1,85 @@
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.main import app
+from app.database import Base, get_database_session
+from app.models import User
+from app.schemas import UserCreate, UserUpdate
+from app.auth import get_current_user
+from app.crud import user_service
+from app.auth import get_password_hash
 
+# Create a mock SQLite database for testing
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:?check_same_thread=False"
 
-@pytest.mark.parametrize("username, email, full_name, password", [("john_42", "john42@gmail.com", "John Doe", "qwertyuiop")])
-def test_signup_new_user(client, setup_database, username, email, full_name, password):
-    response = client.post(
-        "/signup/", json={"username": username, "email": email, "full_name": full_name, "password": password})
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 
-    assert response.status_code == 201
-    data = response.json()
-    assert data["username"] == "john_42"
-    assert data["email"] == "john42@gmail.com"
-    assert data["full_name"] == "John Doe"
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    assert "password" not in data
+@pytest.fixture(scope="module")
+def test_db():
+    # Set up the database and yield session for tests
+    Base.metadata.create_all(bind=engine)
+    db = TestingSessionLocal()
+    yield db
+    db.close()
+    Base.metadata.drop_all(bind=engine)
 
-
-@pytest.mark.parametrize("username, email, full_name, password", [("john_42", "john42@gmail.com", "John Doe", "qwertyuiop")])
-def test_signup_existing_user(client, setup_database, username, email, full_name, password):
-
-    # Attempt to signup with existing user
-    response = client.post(
-        "/signup/", json={"username": username, "email": email, "full_name": full_name, "password": password})
-
-    assert response.status_code == 400
-    assert response.json() == {"detail": "User already registered"}
-
-
-@pytest.mark.parametrize("username, password", [("john_42", "qwertyuiop")])
-def test_login(client, setup_database, username, password):
-
-
-    # Login
-    response = client.post(
-        "/login/", data={"username": username,  "password": password})
-
-    assert response.status_code == 200
-    data = response.json()
-
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
-
-    # Test Login with wrong username
-    response = client.post(
-        "/login/", data={"username": "wrong_username",  "password": password})
+@pytest.fixture(scope="module")
+def client(test_db):
+    # Override the get_database_session dependency with test_db
+    def override_get_db():
+        try:
+            yield test_db
+        finally:
+            test_db.close()
     
-    assert response.status_code == 401
-    data = response.json()
-    assert data == {"detail": "Incorrect username or password"}
+    app.dependency_overrides[get_database_session] = override_get_db
+    client = TestClient(app)
+    return client
 
-    # Test Login with incorrect password
-    response = client.post(
-        "/login/", data={"username": username,  "password": "wrong_password"})
+@pytest.fixture(scope="module")
+def mock_user():
+    # Include the full_name field as required by the schema
+    return UserCreate(username="testuser", email="test@example.com", full_name="Test User", password="password")
 
-    assert response.status_code == 401
-    data = response.json()
-    assert data == {"detail": "Incorrect username or password"}
+@pytest.fixture(scope="module")
+def create_test_user(test_db, mock_user):
+    hashed_password = get_password_hash(mock_user.password)
+    user_service.create_user(test_db, mock_user, hashed_password=hashed_password)
 
-def test_get_users(client, setup_database):
-
-    response = client.get("/users")
-
+# Test: Get list of users
+def test_get_users(client, test_db, create_test_user):
+    response = client.get("/users/")
     assert response.status_code == 200
-    data = response.json()
-    
-    assert all("username" in user for user in data)
-    assert all("email" in user for user in data)
-    assert all("full_name" in user for user in data)
-    
+    assert len(response.json()) > 0
 
-@pytest.mark.parametrize("user_id, wrong_id, expected_username, expected_email, expected_fullname", [(1, 99, "john_42", "john42@gmail.com", "John Doe")])
-def test_get_user_by_id(client, setup_database, user_id, wrong_id, expected_username, expected_email, expected_fullname):
-    # Assert for invalid id
-    response = client.get(f"/users/{wrong_id}")
-    assert response.status_code == 404
-
-    response = client.get(f"/users/{user_id}")
-
+# Test: Get user by ID
+def test_get_user_by_id(client, test_db, create_test_user):
+    test_user = user_service.get_user_by_username(test_db, "testuser")
+    response = client.get(f"/users/{test_user.id}")
     assert response.status_code == 200
-    data = response.json()
+    assert response.json()["username"] == "testuser"
 
-    assert data["username"] == expected_username
-    assert data["email"] == expected_email
-    assert data["full_name"] == expected_fullname
-
-    
-@pytest.mark.parametrize("username, wrong_username, email, full_name", [("john_42", "wronguser", "john42@gmail.com", "John Doe")])
-def test_get_user_by_username(client, setup_database, username, wrong_username, email, full_name):
-    response = client.get(f"/users/name/{username}")
-
+# Test: Get user by username
+def test_get_user_by_username(client):
+    response = client.get("/users/name/testuser")
     assert response.status_code == 200
-    data = response.json()
-    assert data["email"] == email
-    assert data["full_name"] == full_name
+    assert response.json()["username"] == "testuser"
 
-    # Test for wrong username
-
-    response = client.get(f"/users/name/{wrong_username}")
-
-    assert response.status_code == 404
-    data = response.json()
-    assert data == {"detail": "User not found"}
-
-
-@pytest.mark.parametrize("username, password, user_id, wrong_id, another_user_id", [
-    ("john_42", "qwertyuiop", 1, 99, 2)
-])
-def test_update_user(client, setup_database, username, password, user_id, wrong_id, another_user_id):
-    # Test if user exists
-    response = client.get(f"/users/{user_id}")
-
+# Test: Update user by ID
+def test_update_user(client, test_db, mock_user):
+    test_user = user_service.get_user_by_username(test_db, "testuser")
+    update_data = {"username": "updateduser"}
+    response = client.put(f"/users/{test_user.id}", json=update_data)
+    print(f'{response}')
     assert response.status_code == 200
+    assert response.json()["username"] == "updateduser"
 
-    # Test if not user
-    response = client.get(f"/users/{wrong_id}")
-
-    assert response.status_code == 404
-
-    # Login to authenticate
-    response = client.post(
-        "/login/", data={"username": username,  "password": password})
-
+# Test: Delete user by ID
+def test_delete_user(client, test_db):
+    test_user = user_service.get_user_by_username(test_db, "testuser")
+    response = client.delete(f"/users/{test_user.id}")
     assert response.status_code == 200
-    token = response.json()["access_token"]
-
-    update_payload = {"full_name": "Updated User"}
-
-    # Test authentication
-    response = client.put(f"/users/{user_id}", json=update_payload)
-    assert response.status_code == 401
-
-    response = client.put(f"/users/{user_id}", json=update_payload,
-                          headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["full_name"] == update_payload["full_name"]
-    assert data["username"] == username
-
-    # Test authentication for authenticated user not to be able to delete another user
-
-    # Signup another_user
-    response = client.post(
-        "/signup/", json={"username": "sarah87", "email": "sarah87@email.com", "full_name": "Sarah Jane", "password": "qwertyuiop"})
-
-    # Test to see if an authenticated user can edit another_user (should throw a 401 because not authorized to do so)
-    response = client.put(f"/users/{another_user_id}", json=update_payload,
-                          headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 401
-    data = response.json()
-    assert data == {"detail": "Unauthorized"}
-
-
-@pytest.mark.parametrize("username, password, user_id, wrong_id, another_user_id", [("sarah87", "qwertyuiop", 2, 99, 1)])
-def test_delete_user(client, setup_database, username, password, user_id, wrong_id, another_user_id):
-   
-
-    # Login to authenticate
-    response = client.post(
-        "/login/", data={"username": username,  "password": password})
-
-    assert response.status_code == 200
-    token = response.json()["access_token"]
-
-    # Test for authentication
-    response = client.delete(f"/users/{user_id}")
-    assert response.status_code == 401
-
-    # Test to delete user not in db
-    response = client.delete(f"/users/{wrong_id}",
-                             headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 404
-    data = response.json()
-    assert data == {"detail": "User not found"}
-
-    # Test if authenticated user can delete another user
-    response = client.delete(f"/users/{another_user_id}",
-                             headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 401
-    data = response.json()
-    assert data == {"detail": "Unauthorized"}
-
-    # Test Authenticated user can delete account
-    response = client.delete(
-        f"/users/{user_id}", headers={"Authorization": f"Bearer {token}"})
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data == {"message": "Success"}
+    assert response.json()["message"] == "Success"

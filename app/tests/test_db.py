@@ -26,7 +26,7 @@ def test_db():
     db = TestingSessionLocal()
 
     # Mock data: Create a user, a movie, and a comment
-    user = User(id=1, username="testuser", email="testuser@example.com", full_name="John Doe", hashed_password="fakehashedpassword")
+    user = User(id=1, username="john_42", email="testuser@example.com", full_name="John Doe", hashed_password="fakehashedpassword")
     movie = Movie(id=1, title="Test Movie", description="Test description", genre="Drama")
 
     db.add(user)

@@ -53,12 +53,22 @@ def setup_movies(client, auth_token):
     return movie_data
 
 def test_get_movies(client, setup_movies):
-    response = client.get("/movies/")
+    x = setup_movies
+    # Test default pagination settings
+    response = client.get("/movies/?offset=0&limit=10")
     assert response.status_code == 200
     movies = response.json()
-    print("Movies retrieved from API:", movies)
-    assert len(movies) >= 3
-    assert movies[1]["title"] == "Action Man"
+
+   
+    
+    # Check that the number of movies matches the setup
+    assert len(movies) == 3  # Since setup_movies adds 2 movies
+    
+    # Verify that the movies include the expected titles
+    titles = [movie["title"] for movie in movies]
+    assert "Action Man" in titles
+    assert "Tree" in titles
+
 
 def test_get_movie_by_id(client, setup_movies):
     response = client.get("/movies/2")

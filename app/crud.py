@@ -95,6 +95,7 @@ class MovieCRUDService:
     def get_movies(db: Session, offset: int = 0, limit: int = 10):
         return db.query(models.Movie).offset(offset).limit(limit).all()
 
+
     @staticmethod
     def get_movie_by_id(db: Session, movie_id: int):
         return db.query(models.Movie).filter(models.Movie.id == movie_id).first()

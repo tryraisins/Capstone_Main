@@ -85,7 +85,7 @@ def test_get_movie_avg_rating(client, auth_token):
     response = client.get("/movies/ratings/average_rating/1", headers={"Authorization": auth_token})
     assert response.status_code == 200
     data = response.json()
-    assert data["message"] == "successful"
+    assert data["message"] == "Success"
     assert data["data"]["avg_rating"] == 5
 
 
@@ -107,4 +107,4 @@ def test_update_rating(client, auth_token):
 def test_delete_rating(client, auth_token):
     response = client.delete("/movies/ratings/1", headers={"Authorization": auth_token})
     assert response.status_code == 200
-    assert response.json()["message"] == "Successf"
+    assert response.json()["message"] == "Success"
