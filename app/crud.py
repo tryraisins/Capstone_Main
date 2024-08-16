@@ -12,7 +12,7 @@ import app.schemas as dto
 class UserCRUDService:
 
     @staticmethod
-    def create_user(self, db_session: Session, user: dto.UserCreate, hashed_password: str):
+    def create_user(db_session: Session, user: dto.UserCreate, hashed_password: str):
         db_user = models.User(
             email=user.email,
             username=user.username,
