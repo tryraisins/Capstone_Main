@@ -73,7 +73,6 @@ def test_update_user(client, test_db, mock_user):
     test_user = user_service.get_user_by_username(test_db, "testuser")
     update_data = {"username": "updateduser"}
     response = client.put(f"/users/{test_user.id}", json=update_data)
-    print(f'{response}')
     assert response.status_code == 200
     assert response.json()["username"] == "updateduser"
 
