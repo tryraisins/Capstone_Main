@@ -1,31 +1,17 @@
-## TOOLS
+## Overview
 
-- **Programming Language**: Python
+The goal of this project is to develop a movie listing API using FastAPI. The API will allow users to list movies, view listed movies, rate them, and add comments. The application will be secured using JWT (JSON Web Tokens), ensuring that only the user who listed a movie can edit it.
+
+## Tools
+
 - **Framework**: FastAPI
+- **Programming Language**: Python
 - **Database**: PostgreSQL
 - **Authentication**: JWT (JSON Web Tokens)
 - **ORM**: SQLAlchemy
-- **Password Management**: Passlib
 - **Hosting Platform**: Render
 - **Testing Framework**: Pytest
-- **API Documentation**: OpenAPI/Swagger
 - **Environment Configuration**: python-dotenv
-
-## Key Features
-
-- **Secure Authentication**: Allows users to log in and register using JWT, with restricted actions based on authentication status.
-- **Full CRUD Functionality**: Supports creating, reading, updating, and deleting movies, users, ratings, and comments.
-- **Movie Management**: Users can add new movies, search for them by various criteria, and view detailed movie information.
-- **Ratings and Reviews**: Users can rate and comment on movies, enhancing community interaction.
-- **Efficient Querying**: The API supports advanced filtering, pagination, and searching to handle large amounts of data effectively.
-- **Modular Design**: Leverages FastAPI’s dependency injection for a modular and maintainable codebase.
-- **Comprehensive Logging**: Includes detailed logging and error handling to ensure smooth operation and easy troubleshooting.
-
-## Applications
-
-- **Movie Discovery Platforms**: Perfect for creating movie databases or platforms where users can explore and find movies.
-- **Review Aggregators**: Ideal for services that compile and manage movie reviews and ratings.
-- **Content Management Systems (CMS)**: Suitable for CMS applications focused on media content, particularly movies.
 
 ## Setup Instructions
 
@@ -55,13 +41,15 @@ Once the server is up and running, access the interactive API documentation at t
 
 3.  **Configure the database**:
 
-         Create a PostgreSQL database and set up the connection in the `.env` file:
+    Create a PostgreSQL database and set up the connection in the `.env` file\
+    Add your SECRET_KEY value in the `.env` file\
+    Add DATABASE_URL=your_database_url # Replace with your database URL\
+    Then add the following
 
-    Add your SECRET_KEY value in the `.env` file
-    Set ALGORITHM = HS256
-    Set ACCESS_TOKEN_EXPIRES_MINUTES = 30
-    `And    DATABASE_URL=your_database_url  # Replace with your database URL
-`
+    ```
+    ALGORITHM = HS256
+    ACCESS_TOKEN_EXPIRES_MINUTES = 30
+    ```
 
 4.  **Add BetterStack Source**:
 
@@ -102,29 +90,27 @@ To ensure the API works as expected, run the tests using `pytest`:
     pytest
     ```
 
-## Project Directory
+## Directory
 
 ```
 MOVIE_API/
-├── .pytest_cache/
-├── alembic/
 ├── app/
-│   ├── __pycache__/
 │   ├── routers/
 │   ├── tests/
-│   ├── config.py
+│   ├── auth.py
 │   ├── crud.py
 │   ├── database.py
 │   ├── logger.py
 │   ├── main.py
+│   ├── middleware.py
 │   ├── models.py
-│   ├── auth.py
 │   ├── schemas.py
-│   ├── text.txt
-│   ├── utils.py
 ├── .env
 ├── .gitignore
-├── alembic.ini
 ├── README.md
 ├── requirements.txt
 ```
+
+## Live Testing
+
+https://capstone-main-nwii.onrender.com/docs#/
